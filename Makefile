@@ -7,7 +7,8 @@ CXX			=	c++
 CPPFLAGS	=	-std=c++98 -g3 -Wall -Wextra -Werror
 DELETE		=	rm -rf
 
-SRCS		=	main.cpp
+SRCS		=	main.cpp \
+		        Server.cpp
 OBJS		=	$(addprefix $(OBJ_DIR)/, $(SRCS:%cpp=%o))
 
 $(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp
