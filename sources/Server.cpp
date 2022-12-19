@@ -73,71 +73,83 @@ void Server::listenForConnections() {
 	}
 }
 
-void Server::waitForClients() {
-	// int address_size = sizeof(m_address),
-	//     request_socket = accept(m_server_fd, (struct sockaddr*)&m_address, (socklen_t*)&address_size);
-	// if (request_socket < 0) {
-	// 	throw std::runtime_error("Error: Invalid connection encountered");
-	// }
-	// std::cout << "Received a connection from the Irssi Client" << std::endl;
-	int request_socket;
-	socklen_t addrlen;
-	std::string buffer;
+void Server::doPoll() {
+	if (poll(&m_poll_fd[0], m_poll_fd.size(), -1) == -1) {
+		throw std::runtime_error("Error: poll failure");
+	}
+}
 
+void Server::removeClient(int bytes, int src_fd, int i) {
+	if (!bytes) {
+		std::cout << "Server: socket " << src_fd << " hung up" << std::endl;
+	} else {
+		std::cerr << "Error: recv failure" << std::endl;
+	}
+	close(m_poll_fd[i].fd);
+	m_poll_fd.erase(m_poll_fd.begin() + i);
+}
+
+void Server::sendToAllClients(int bytes, int src_fd, const char* buffer) {
+	for (int i = 0; i < static_cast<int>(m_poll_fd.size()); i++) {
+		int dest_fd = m_poll_fd[i].fd;
+
+		if (dest_fd != m_server_fd && dest_fd != src_fd) {
+			if (send(dest_fd, buffer, bytes, 0) == -1) {
+				throw std::runtime_error("send failure");
+			}
+		}
+	}
+}
+
+int Server::acceptConnections() {
+	int status = 0;
+	socklen_t addrlen = sizeof(m_address);
+
+	return status = accept(m_server_fd, (struct sockaddr*)&m_address, &addrlen);
+}
+
+void Server::addClient(int client_socket) {
+	struct pollfd client = {client_socket, POLLIN, 0};
+	m_poll_fd.push_back(client);
+
+	//  printf("pollserver: new connection from %s on socket %d\n",
+	//     inet_ntop(remoteaddr.ss_family,
+	//         get_in_addr((struct sockaddr*)&remoteaddr),
+	//         remoteIP, INET6_ADDRSTRLEN),
+	//     newfd);
+	std::cout << "Connected!\nTotal Users: " << m_poll_fd.size() - 1 << std::endl;
+	this->doCapabilityNegotiation(client_socket);
+}
+
+void Server::doCapabilityNegotiation(int client_socket) {
+	send(client_socket, "CAP * ACK multi-prefix\r\n", strlen("CAP * ACK multi-prefix\r\n"), 0);
+	send(client_socket, "001 root :Welcome to the Internet Relay Network root\r\n", strlen("001 root :Welcome to the Internet Relay Network root\r\n"), 0);
+}
+
+void Server::handleClients() {
+	int client_socket = this->acceptConnections();
+	if (client_socket == -1) {
+		throw std::runtime_error("Error: Encountered invalid connection");
+	} else {
+		this->addClient(client_socket);
+	}
+}
+
+void Server::waitForClients() {
+	std::string buffer;
 	struct pollfd serv = {m_server_fd, POLLIN, 0};
 	m_poll_fd.push_back(serv);
 
 	while (1) {
-		if (poll(&m_poll_fd[0], m_poll_fd.size(), -1) == -1) {
-			throw std::runtime_error("poll failure");
-		}
-
-		for (int i = 0; i < static_cast<int>(m_poll_fd.size()); i++) {
-			if (m_poll_fd[i].revents && POLLIN) {
-				if (m_poll_fd[i].fd == m_server_fd) {
-					addrlen = sizeof(m_address);
-					request_socket = accept(m_server_fd, (struct sockaddr*)&m_address, &addrlen);
-					if (request_socket == -1) {
-						throw std::runtime_error("accept failure");
-					} else {
-						struct pollfd client = {request_socket, POLLIN, 0};
-						m_poll_fd.push_back(client);
-
-						std::cout << "Connected!" << std::endl;
-						//  printf("pollserver: new connection from %s on socket %d\n",
-                        //     inet_ntop(remoteaddr.ss_family,
-                        //         get_in_addr((struct sockaddr*)&remoteaddr),
-                        //         remoteIP, INET6_ADDRSTRLEN),
-                        //     newfd);
-						std::cout << m_poll_fd.size() << std::endl;
-						send(request_socket, "CAP * ACK multi-prefix\r\n", strlen("CAP * ACK multi-prefix\r\n"), 0);
-						send(request_socket, "001 root :Welcome to the Internet Relay Network root\r\n", strlen("001 root :Welcome to the Internet Relay Network root\r\n"), 0);
-					}
-				} else {
-					int bytes = recv(m_poll_fd[i].fd, &buffer, sizeof(buffer), 0);
-					int sender = m_poll_fd[i].fd;
-
-					if (bytes <= 0) {
-						if (bytes == 0) {
-							std::cout << "pollserver: socket " << sender << " hung up" << std::endl;
-						} else {
-							std::cerr << "recv failure" << std::endl;
-						}
-
-						close(m_poll_fd[i].fd);
-						m_poll_fd.erase(m_poll_fd.begin() + i);
-					} else {
-						for (int j = 0; j < static_cast<int>(m_poll_fd.size()); j++) {
-							int destination = m_poll_fd[j].fd;
-
-							if (destination != m_server_fd && destination != sender) {
-								if (send(destination, &buffer, bytes, 0) == -1) {
-									throw std::runtime_error("send failure");
-								}
-							}
-						}
-					}
-				}
+		this->doPoll();
+		for (int i = 0; i < static_cast<int>(m_poll_fd.size()) && (m_poll_fd[i].revents && POLLIN); i++) {
+			if (m_poll_fd[i].fd == m_server_fd) {
+				this->handleClients();
+			} else {
+				int bytes = recv(m_poll_fd[i].fd, &buffer, sizeof(buffer), 0);
+				int src_fd = m_poll_fd[i].fd;
+				bytes <= 0 ? this->removeClient(bytes, src_fd, i) :
+				             this->sendToAllClients(bytes, src_fd, buffer.c_str());
 			}
 		}
 	}
