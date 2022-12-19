@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
 	std::cout << "Listening to port " << argv[1] << std::endl;
 	try {
 		Server irc;
-		irc.initialize(argv[1], argv[2]);
+		irc.initServer(argv[1], argv[2]);
 		irc.waitForClients();
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;

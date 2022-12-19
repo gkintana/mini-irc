@@ -26,21 +26,22 @@ class Server {
 		struct sockaddr_storage       m_address;
 		std::vector<struct pollfd>    m_poll_fd;
 
+		void setPort(std::string port);
+		void setPassword(std::string password);
+		void setServerSocket(std::string port);
+
+		struct addrinfo* getAddresses(std::string port);
+		int createSocket(struct addrinfo *ptr);
+		int bindToAddress(struct addrinfo* ptr);
+		void checkSocket(struct addrinfo* address_structs, struct addrinfo *ptr);
+		void socketLoop(struct addrinfo* address_structs);
+		void listenForConnections();
 
 	public:
 		Server();
 		~Server();
 
-		void setPort(std::string port);
-		void setPassword(std::string password);
-
-		void createServerSocket(std::string port);
-		// void setSocketOptions();
-		// void bindAddressToPort();
-		// void listenForConnections();
-		void acceptRequests();
-
-		void initialize(std::string port, std::string password);
+		void initServer(std::string port, std::string password);
 		void waitForClients();
 
 };
