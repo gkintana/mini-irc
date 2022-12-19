@@ -89,14 +89,18 @@ void Server::removeClient(int bytes, int src_fd, int i) {
 	m_poll_fd.erase(m_poll_fd.begin() + i);
 }
 
+void Server::sendMessage(int bytes, int dest_fd, const char* buffer) {
+	if (send(dest_fd, buffer, bytes, 0) == -1) {
+		throw std::runtime_error("send failure");
+	}
+}
+
 void Server::sendToAllClients(int bytes, int src_fd, const char* buffer) {
 	for (int i = 0; i < static_cast<int>(m_poll_fd.size()); i++) {
 		int dest_fd = m_poll_fd[i].fd;
 
 		if (dest_fd != m_server_fd && dest_fd != src_fd) {
-			if (send(dest_fd, buffer, bytes, 0) == -1) {
-				throw std::runtime_error("send failure");
-			}
+			this->sendMessage(bytes, dest_fd, buffer);
 		}
 	}
 }
@@ -126,7 +130,7 @@ void Server::doCapabilityNegotiation(int client_socket) {
 	send(client_socket, "001 root :Welcome to the Internet Relay Network root\r\n", strlen("001 root :Welcome to the Internet Relay Network root\r\n"), 0);
 }
 
-void Server::handleClients() {
+void Server::handleNewConnections() {
 	int client_socket = this->acceptConnections();
 	if (client_socket == -1) {
 		throw std::runtime_error("Error: Encountered invalid connection");
@@ -135,25 +139,25 @@ void Server::handleClients() {
 	}
 }
 
+void Server::manageConnections(int i) {
+	char buffer[1024];
+	int bytes = recv(m_poll_fd[i].fd, buffer, sizeof(buffer), 0),
+	    src_fd = m_poll_fd[i].fd;
+
+	bytes <= 0 ? this->removeClient(bytes, src_fd, i) :
+	             this->sendToAllClients(bytes, src_fd, buffer);
+}
+
 void Server::waitForClients() {
-	std::string buffer;
 	struct pollfd serv = {m_server_fd, POLLIN, 0};
 	m_poll_fd.push_back(serv);
 
 	while (1) {
 		this->doPoll();
 		for (int i = 0; i < static_cast<int>(m_poll_fd.size()) && (m_poll_fd[i].revents && POLLIN); i++) {
-			if (m_poll_fd[i].fd == m_server_fd) {
-				this->handleClients();
-			} else {
-				int bytes = recv(m_poll_fd[i].fd, &buffer, sizeof(buffer), 0);
-				int src_fd = m_poll_fd[i].fd;
-				bytes <= 0 ? this->removeClient(bytes, src_fd, i) :
-				             this->sendToAllClients(bytes, src_fd, buffer.c_str());
-			}
+			m_poll_fd[i].fd == m_server_fd ? this->handleNewConnections() : this->manageConnections(i);
 		}
 	}
-
 }
 
 void Server::initServer(std::string port, std::string password) {

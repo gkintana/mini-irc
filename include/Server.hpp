@@ -38,11 +38,13 @@ class Server {
 		void listenForConnections();
 
 		void doPoll();
-		void handleClients();
+		void handleNewConnections();
+		void manageConnections(int i);
 		int acceptConnections();
 		void doCapabilityNegotiation(int client_socket);
 		void addClient(int client_socket);
 		void removeClient(int bytes, int src_fd, int i);
+		void sendMessage(int bytes, int dest_fd, const char* buffer);
 		void sendToAllClients(int bytes, int src_fd, const char* buffer);
 
 	public:
