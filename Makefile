@@ -20,6 +20,15 @@ all:		$(NAME)
 $(NAME):	$(OBJS)
 			$(CXX) $(CPPFLAGS) $(OBJS) -o $@
 
+irssi: rm_irssi
+	docker run -it --name my-running-irssi -e TERM -u $(id -u):$(id -g) \
+	--log-driver=none \
+    -v ${HOME}/.irssi:/home/user/.irssi:ro \
+    irssi
+
+rm_irssi:
+	@docker rm -f my-running-irssi 2> /dev/null || exit 0
+
 clean:
 			@$(DELETE) $(OBJ_DIR)
 

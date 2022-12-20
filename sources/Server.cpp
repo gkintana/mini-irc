@@ -154,8 +154,10 @@ void Server::waitForClients() {
 
 	while (1) {
 		this->doPoll();
-		for (int i = 0; i < static_cast<int>(m_poll_fd.size()) && (m_poll_fd[i].revents && POLLIN); i++) {
-			m_poll_fd[i].fd == m_server_fd ? this->handleNewConnections() : this->manageConnections(i);
+		for (int i = 0; i < static_cast<int>(m_poll_fd.size()); i++) {
+			if (m_poll_fd[i].revents && POLLIN) {
+				m_poll_fd[i].fd == m_server_fd ? this->handleNewConnections() : this->manageConnections(i);
+			}
 		}
 	}
 }
