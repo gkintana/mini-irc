@@ -16,10 +16,12 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp
 			@$(CXX) $(CPPFLAGS) -I$(INC_DIR) -c $< -o $@
 
 all:		$(NAME)
+			./ircserv 6667 password
 
 $(NAME):	$(OBJS)
 			$(CXX) $(CPPFLAGS) $(OBJS) -o $@
 
+# courtesy of anasr
 irssi: rm_irssi
 	docker run -it --name my-running-irssi -e TERM -u $(id -u):$(id -g) \
 	--log-driver=none \
@@ -37,4 +39,4 @@ fclean:		clean
 
 re:			fclean all
 
-.PHONY:		all clean fclean re
+.PHONY:		all irssi rm_irssi clean fclean re
